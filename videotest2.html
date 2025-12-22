@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NCTWISH-Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@100;400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+        }
+        .no-select {
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .zoom-effect {
+            transition: transform 0.3s ease-out;
+        }
+        .container-link:active .zoom-effect {
+            transform: scale(0.98);
+        }
+    </style>
+</head>
+<body>
+
+    <a href="https://google.com" class="container-link block relative w-full h-screen overflow-hidden group cursor-pointer">
+
+        <!-- 1. 배경 이미지 -->
+        <div class="absolute inset-0 z-0">
+            <img 
+                src="background.png" 
+                alt="Background" 
+                class="w-full h-full object-cover opacity-100 zoom-effect"
+            >
+        </div>
+
+        <!-- 2. 크로마키 캔버스 (영상 렌더링용) -->
+        <div class="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+            <canvas id="targetCanvas" class="zoom-effect"></canvas>
+        </div>
+
+        <!-- 3. 원본 영상 소스 (숨김 처리 방식 변경) -->
+        <!-- 
+            [중요 변경점]
+            class="hidden"을 쓰면 아이폰에서 영상 데이터를 처리하지 않아 캔버스가 비어버립니다.
+            대신 opacity-0 (투명도 0)과 z-index -10을 사용하여 화면엔 안 보이지만
+            브라우저가 "렌더링 중"이라고 인식하게 만들어야 합니다.
+        -->
+        <video 
+            id="sourceVideo" 
+            class="absolute top-0 left-0 w-1 h-1 opacity-0 -z-10 pointer-events-none" 
+            autoplay 
+            muted 
+            loop 
+            playsinline 
+            webkit-playsinline
+            crossorigin="anonymous"
+        >
+            <!-- 
+                [파일 확인 필수]
+                1. 이 파일이 깃헙 저장소(index.html과 같은 위치)에 실제로 있는지 확인하세요.
+                2. 배경이 검은색(#000000)인 일반 MP4 파일이어야 합니다.
+            -->
+            <source src="test.mp4" type="video/mp4">
+        </video>
+
+        <!-- 4. 텍스트 및 콘텐츠 -->
+        <div class="absolute inset-0 z-20 flex flex-col items-center justify-center text-center text-white p-4 no-select">
+            <p class="text-sm md:text-lg tracking-[0.5em] mb-4 uppercase text-gray-300 animate-pulse">
+                Click Anywhere to Enter
+            </p>
+            <h1 class="text-5xl md:text-8xl font-black mb-6 tracking-tighter drop-shadow-2xl">
+                NCT WISH
+            </h1>
+        </div>
+    </a>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const video = document.getElementById('sourceVideo');
+            const canvas = document.getElementById('targetCanvas');
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+            // 캔버스 크기 초기화 함수
+            function resizeCanvas() {
+                const windowRatio = window.innerWidth / window.innerHeight;
+                // 비디오 크기를 아직 모르면 기본 16:9 비율 가정
+                const videoRatio = (video.videoWidth && video.videoHeight) 
+                    ? (video.videoWidth / video.videoHeight) 
+                    : 1.77;
+
+                if (window.innerWidth < 768) { 
+                    // 모바일: 가로 기준 꽉 채우기
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerWidth / videoRatio;
+                } else {
+                    // PC: 세로 기준 꽉 채우기
+                    canvas.height = window.innerHeight;
+                    canvas.width = window.innerHeight * videoRatio;
+                }
+            }
+
+            // 프레임 처리 (크로마키)
+            function computeFrame() {
+                // 루프 계속 실행
+                requestAnimationFrame(computeFrame);
+
+                // 비디오가 멈췄거나 데이터가 없으면 그리지 않음
+                if (video.paused || video.ended || video.readyState < 2) return;
+
+                // 캔버스 크기와 비디오 비율이 안 맞을 때를 대비해 그릴 때마다 사이즈 체크 (선택사항)
+                // 성능을 위해 resize 이벤트에서만 크기 변경하지만, 안전하게 여기서 drawImage
+
+                // 1. 비디오 프레임을 캔버스 크기에 맞춰 그리기
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                // 2. 픽셀 데이터 가져오기 (여기서 보안 에러가 나면 로컬 실행 문제임)
+                try {
+                    const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const l = frame.data.length;
+
+                    // 3. 검은색 제거 (RGB < 30)
+                    for (let i = 0; i < l; i += 4) {
+                        const r = frame.data[i];
+                        const g = frame.data[i + 1];
+                        const b = frame.data[i + 2];
+
+                        // 검은색에 가까운 부분을 투명하게(Alpha=0) 처리
+                        if (r < 30 && g < 30 && b < 30) {
+                            frame.data[i + 3] = 0; 
+                        }
+                    }
+                    ctx.putImageData(frame, 0, 0);
+                } catch (e) {
+                    // 로컬 파일 실행 시 CORS 에러 발생 가능
+                    console.error("Canvas Security Error (로컬 실행 불가):", e);
+                    return;
+                }
+            }
+
+            // 초기 실행
+            resizeCanvas();
+
+            // 비디오 메타데이터 로드 시 크기 재조정 및 재생 시도
+            video.addEventListener('loadedmetadata', () => {
+                resizeCanvas();
+                video.play().catch(e => console.log("Autoplay blocked:", e));
+            });
+            
+            // 재생 시작되면 루프 시작
+            video.addEventListener('play', () => {
+                requestAnimationFrame(computeFrame);
+            });
+
+            // 화면 크기 변경 대응
+            window.addEventListener('resize', resizeCanvas);
+            
+            // 강제 재생 시도 (모바일 대응)
+            setTimeout(() => {
+                if(video.paused) video.play();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
