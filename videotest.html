@@ -50,13 +50,13 @@
 
         <!-- 2. 투명 배경 WebM 영상 (배경 위, 텍스트 아래) -->
         <!-- 
-            pointer-events-none: 영상이 클릭 이벤트를 가로채지 않도록 설정
-            mix-blend-mode: screen (예시용): 실제 투명 WebM이 없다면 이 속성을 사용해 검은 배경을 투명하게 만들 수 있습니다. 
-            진짜 Alpha 채널이 있는 WebM을 사용한다면 mix-blend-mode 클래스를 제거하세요.
+            수정된 부분:
+            1. 기본 (모바일): w-full h-auto -> 가로를 꽉 채우고 높이는 비율대로 (양옆 잘림 방지)
+            2. md 이상 (태블릿/PC): md:h-full md:w-auto md:max-w-none -> 높이를 꽉 채우고 가로는 비율대로
         -->
         <div class="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
             <video 
-                class="h-full w-auto max-w-none opacity-90 zoom-effect"
+                class="w-full h-auto md:w-auto md:h-full md:max-w-none opacity-90 zoom-effect"
                 autoplay 
                 muted 
                 loop 
@@ -64,7 +64,7 @@
             >
                 <!-- 여기에 배경이 투명한 WebM 파일 경로를 입력하세요 -->
                 <!-- 예시로 잉크 퍼지는 효과 영상을 사용함 -->
-                <source src="test.webm" type="video/mp4">
+                <source src="test.webm" type="video/webm">
                 이 브라우저는 비디오 태그를 지원하지 않습니다.
             </video>
         </div>
